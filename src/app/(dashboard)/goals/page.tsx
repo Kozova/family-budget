@@ -7,7 +7,7 @@ const goals = [
   { id:3, emoji:"🏠", name:"Ремонт кухні", deadline:"Жовтень 2026", target:30000, current:12000, color:"#EF9F27" },
 ];
 
-function GoalCard({ g }) {
+function GoalCard({ g }: { g: { id: number; emoji: string; name: string; deadline: string; target: number; current: number; color: string } }) {
   const pct = Math.round((g.current / g.target) * 100);
   const left = g.target - g.current;
   const perMonth = Math.round(left / 4);
