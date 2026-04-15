@@ -125,9 +125,9 @@ export default function GoalsPage() {
                 <span>Залишилось: <strong style={{ color:"#1A2744" }}>₴ {left.toLocaleString("uk-UA")}</strong></span>
               </div>
               <div style={{ height:9, background:"#F0F2F5", borderRadius:5, overflow:"hidden", marginBottom:10 }}>
-                <div style={{ height:"100%", width:`${Math.min(pct,100)}%`, background:color, borderRadius:5, transition:"width .4s" }} />
+                <div style={{ height:"100%", width:Math.min(pct,100)+"%", background:color, borderRadius:5, transition:"width .4s" }} />
               </div>
-              <div style={{ display:"flex", gap:8" }}>
+              <div style={{ display:"flex", gap:8 }}>
                 {[1000, 5000, 10000].map(amt => (
                   <button key={amt} onClick={() => handleAddAmount(g.id, g.current_amount, amt)} style={{ border:"1.5px solid #E8EAF0", background:"#F9FAFB", borderRadius:8, padding:"5px 12px", fontSize:12, cursor:"pointer", color:"#1A2744", fontWeight:500 }}>
                     +{amt.toLocaleString("uk-UA")}
