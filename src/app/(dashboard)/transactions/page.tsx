@@ -31,28 +31,36 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "expense" | "income">("all");
+  const [deleting, setDeleting] = useState<string | null>(null);
   const supabase = createClient();
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      let query = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).order("created_at", { ascending: false });
-      if (filter !== "all") query = query.eq("type", filter);
-      const { data } = await query;
-      setTransactions(data || []);
-      setLoading(false);
-    };
+  const load = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    let query = supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).order("created_at", { ascending: false });
+    if (filter !== "all") query = query.eq("type", filter);
+    const { data } = await query;
+    setTransactions(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [filter]);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Видалити транзакцію?")) return;
+    setDeleting(id);
+    await supabase.from("transactions").delete().eq("id", id);
+    setDeleting(null);
     load();
-  }, [filter]);
+  };
 
   return (
     <div>
       <div style={{ display:"flex", gap:9, marginBottom:16 }}>
         {(["all","expense","income"] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{ border:"1.5px solid", borderRadius:8, padding:"8px 16px", fontSize:13, cursor:"pointer", fontWeight:filter===f?700:400, background:filter===f?"#1A2744":"#fff", color:filter===f?"#fff":"#6B7280", borderColor:filter===f?"#1A2744":"#E8EAF0" }}>
-            {f==="all"?"Всі" : f==="expense"?"Витрати":"Доходи"}
+            {f==="all" ? "Всі" : f==="expense" ? "Витрати" : "Доходи"}
           </button>
         ))}
       </div>
@@ -65,8 +73,8 @@ export default function TransactionsPage() {
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
               <tr style={{ borderBottom:"2px solid #F0F2F5" }}>
-                {["Дата","Опис","Категорія","Сума"].map(h => (
-                  <th key={h} style={{ fontSize:11, color:"#9CA3AF", fontWeight:600, textAlign:"left", padding:"10px 16px", textTransform:"uppercase", letterSpacing:"0.04em" }}>{h}</th>
+                {["Дата","Опис","Категорія","Сума",""].map((h,i) => (
+                  <th key={i} style={{ fontSize:11, color:"#9CA3AF", fontWeight:600, textAlign:"left", padding:"10px 16px", textTransform:"uppercase", letterSpacing:"0.04em" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -74,7 +82,7 @@ export default function TransactionsPage() {
               {transactions.map(tx => {
                 const cat = catColors[tx.description] || { bg:"#F0F2F5", color:"#6B7280" };
                 return (
-                  <tr key={tx.id} style={{ borderBottom:"1px solid #F5F5F8" }}>
+                  <tr key={tx.id} style={{ borderBottom:"1px solid #F5F5F8", opacity: deleting===tx.id ? 0.4 : 1, transition:"opacity .2s" }}>
                     <td style={{ padding:"12px 16px", fontSize:13, color:"#9CA3AF" }}>{tx.date}</td>
                     <td style={{ padding:"12px 16px", fontSize:13, color:"#1A2744", fontWeight:500 }}>{tx.description}</td>
                     <td style={{ padding:"12px 16px" }}>
@@ -82,6 +90,16 @@ export default function TransactionsPage() {
                     </td>
                     <td style={{ padding:"12px 16px", fontSize:13, fontWeight:700, color:tx.type==="expense"?"#E24B4A":"#1EB788", whiteSpace:"nowrap" }}>
                       {tx.type==="expense"?"-":"+"}{tx.amount.toLocaleString("uk-UA")} {tx.currency}
+                    </td>
+                    <td style={{ padding:"12px 16px", textAlign:"right" }}>
+                      <button
+                        onClick={() => handleDelete(tx.id)}
+                        disabled={deleting===tx.id}
+                        style={{ background:"none", border:"1.5px solid #E8EAF0", borderRadius:7, width:30, height:30, cursor:"pointer", fontSize:14, color:"#9CA3AF", display:"inline-flex", alignItems:"center", justifyContent:"center", transition:"all .15s" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor="#E24B4A"; (e.currentTarget as HTMLButtonElement).style.color="#E24B4A"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor="#E8EAF0"; (e.currentTarget as HTMLButtonElement).style.color="#9CA3AF"; }}>
+                        🗑️
+                      </button>
                     </td>
                   </tr>
                 );
