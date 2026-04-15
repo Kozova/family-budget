@@ -23,7 +23,7 @@ export default function BalanceHero({ refresh }: { refresh?: number }) {
     load();
   }, [refresh]);
 
-  const total = income || 34000;
+  const total = income;
   const totalSpent = spent || 0;
   const pct = total > 0 ? Math.round((totalSpent / total) * 100) : 0;
   const left = total - totalSpent;
