@@ -1,24 +1,39 @@
-export default function StatsRow() {
+"use client";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase";
+
+export default function StatsRow({ refresh }: { refresh?: number }) {
+  const [income, setIncome] = useState(0);
+  const [expense, setExpense] = useState(0);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const now = new Date();
+      const from = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;
+      const { data } = await supabase.from("transactions").select("amount,type").eq("user_id", user.id).gte("date", from);
+      if (!data) return;
+      setIncome(data.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0));
+      setExpense(data.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0));
+    };
+    load();
+  }, [refresh]);
+
   const stats = [
-    { label: 'Доходи за квітень', value: '₴ 34 000', badge: '+8%', badgeType: 'up', sub: 'до березня' },
-    { label: 'Витрати за квітень', value: '₴ 19 750', badge: '+3%', badgeType: 'dn', sub: 'до березня', red: true },
-    { label: 'Накопичення', value: '₴ 8 400', sub: '3 активних цілі' },
+    { label: "Доходи за місяць", value: `₴ ${income.toLocaleString("uk-UA")}`, sub: "цього місяця", red: false },
+    { label: "Витрати за місяць", value: `₴ ${expense.toLocaleString("uk-UA")}`, sub: "цього місяця", red: true },
+    { label: "Накопичення", value: `₴ ${Math.max(0, income - expense).toLocaleString("uk-UA")}`, sub: "залишок", red: false },
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
       {stats.map(s => (
-        <div key={s.label} style={{ background: '#fff', borderRadius: 16, padding: '16px 18px', border: '1px solid #E8EAF0', boxShadow: '0 2px 8px rgba(26,39,68,.06)', transition: 'border-color .15s' }}>
-          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#9CA3AF', marginBottom: 6 }}>{s.label}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: s.red ? '#E24B4A' : '#1A2744' }}>{s.value}</div>
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-            {s.badge && (
-              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, fontWeight: 700, background: s.badgeType === 'up' ? '#E1F5EE' : '#FCEBEB', color: s.badgeType === 'up' ? '#0F6E56' : '#A32D2D' }}>
-                {s.badge}
-              </span>
-            )}
-            {s.sub}
-          </div>
+        <div key={s.label} style={{ background:"#fff", borderRadius:16, padding:"16px 18px", border:"1px solid #E8EAF0", boxShadow:"0 2px 8px rgba(26,39,68,.06)" }}>
+          <div style={{ fontSize:10, textTransform:"uppercase", letterSpacing:"0.07em", color:"#9CA3AF", marginBottom:6 }}>{s.label}</div>
+          <div style={{ fontSize:22, fontWeight:700, color:s.red?"#E24B4A":"#1A2744" }}>{s.value}</div>
+          <div style={{ fontSize:11, color:"#9CA3AF", marginTop:4 }}>{s.sub}</div>
         </div>
       ))}
     </div>
