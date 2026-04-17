@@ -2,19 +2,15 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 
-interface CategoryLimit {
+interface Category {
   id: string;
-  category_name: string;
-  emoji: string;
-  monthly_limit: number;
-}
-
-interface CategorySpent {
   name: string;
-  spent: number;
+  emoji: string;
+  type: string;
+  limit?: number;
 }
 
-const DEFAULT_CATEGORIES = [
+const DEFAULT_EXPENSE = [
   { emoji: "🛒", name: "Їжа" },
   { emoji: "🚗", name: "Транспорт" },
   { emoji: "🏠", name: "Комунальні" },
@@ -25,11 +21,22 @@ const DEFAULT_CATEGORIES = [
   { emoji: "📱", name: "Підписки" },
 ];
 
+const DEFAULT_INCOME = [
+  { emoji: "💼", name: "Зарплата" },
+  { emoji: "💻", name: "Фріланс" },
+  { emoji: "🏠", name: "Оренда" },
+  { emoji: "🎁", name: "Подарунок" },
+  { emoji: "💰", name: "Інше" },
+];
+
 export default function CategoriesPage() {
-  const [limits, setLimits] = useState<CategoryLimit[]>([]);
-  const [spent, setSpent] = useState<CategorySpent[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [limits, setLimits] = useState<Record<string, number>>({});
   const [showForm, setShowForm] = useState(false);
-  const [selectedCat, setSelectedCat] = useState(DEFAULT_CATEGORIES[0]);
+  const [editCat, setEditCat] = useState<Category | null>(null);
+  const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState("");
+  const [type, setType] = useState<"expense" | "income">("expense");
   const [limitAmount, setLimitAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const supabase = createClient();
@@ -37,83 +44,152 @@ export default function CategoriesPage() {
   const load = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    const { data: limitsData } = await supabase
-      .from("category_limits")
+    const { data: cats } = await supabase
+      .from("categories")
       .select("*")
-      .eq("user_id", user.id);
-    setLimits(limitsData || []);
-
-    const now = new Date();
-    const from = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-01";
-    const { data: txs } = await supabase
-      .from("transactions")
-      .select("amount, description, type")
       .eq("user_id", user.id)
-      .eq("type", "expense")
-      .gte("date", from);
+      .order("type").order("name");
+    setCategories(cats || []);
 
-    const spentMap: Record<string, number> = {};
-    txs?.forEach(tx => {
-      spentMap[tx.description] = (spentMap[tx.description] || 0) + Number(tx.amount);
-    });
-    setSpent(Object.entries(spentMap).map(([name, spent]) => ({ name, spent })));
+    const { data: lims } = await supabase
+      .from("category_limits")
+      .select("category_name, monthly_limit")
+      .eq("user_id", user.id);
+    const limMap: Record<string, number> = {};
+    lims?.forEach(l => { limMap[l.category_name] = l.monthly_limit; });
+    setLimits(limMap);
   };
 
   useEffect(() => { load(); }, []);
 
+  const openCreate = () => {
+    setEditCat(null);
+    setName(""); setEmoji(""); setType("expense"); setLimitAmount("");
+    setShowForm(true);
+  };
+
+  const openEdit = (cat: Category) => {
+    setEditCat(cat);
+    setName(cat.name); setEmoji(cat.emoji); setType(cat.type as "expense" | "income");
+    setLimitAmount(limits[cat.name] ? String(limits[cat.name]) : "");
+    setShowForm(true);
+  };
+
   const handleSave = async () => {
-    if (!limitAmount) return;
+    if (!name) return;
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("category_limits").upsert({
-      user_id: user.id,
-      category_name: selectedCat.name,
-      emoji: selectedCat.emoji,
-      monthly_limit: Number(limitAmount),
-    }, { onConflict: "user_id,category_name" });
-    setLimitAmount("");
+
+    if (editCat) {
+      await supabase.from("categories").update({ name, emoji: emoji || editCat.emoji, type }).eq("id", editCat.id);
+    } else {
+      await supabase.from("categories").insert({ user_id: user.id, name, emoji: emoji || (type === "expense" ? "💳" : "💰"), type });
+    }
+
+    if (limitAmount && Number(limitAmount) > 0) {
+      await supabase.from("category_limits").upsert({
+        user_id: user.id,
+        category_name: name,
+        emoji: emoji || (type === "expense" ? "💳" : "💰"),
+        monthly_limit: Number(limitAmount),
+      }, { onConflict: "user_id,category_name" });
+    } else if (editCat && limits[editCat.name]) {
+      await supabase.from("category_limits").delete().eq("user_id", user.id).eq("category_name", editCat.name);
+    }
+
     setShowForm(false);
     setSaving(false);
     load();
   };
 
-  const handleDelete = async (id: string) => {
-    await supabase.from("category_limits").delete().eq("id", id);
+  const handleDelete = async (cat: Category) => {
+    if (!confirm("Видалити категорію?")) return;
+    await supabase.from("categories").delete().eq("id", cat.id);
+    await supabase.from("category_limits").delete().eq("user_id", (await supabase.auth.getUser()).data.user!.id).eq("category_name", cat.name);
     load();
   };
 
-  const getSpent = (name: string) => spent.find(s => s.name === name)?.spent || 0;
+  const renderCatRow = (name: string, emoji: string, isDefault = false, cat?: Category) => {
+    const limit = limits[name];
+    return (
+      <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #F5F5F8" }}>
+        <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{emoji}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, color: "#1A2744", fontWeight: 500 }}>{name}</div>
+          {limit && (
+            <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+              Ліміт: {limit.toLocaleString("uk-UA")} грн/міс
+            </div>
+          )}
+        </div>
+        {isDefault ? (
+          <span style={{ fontSize: 11, color: "#9CA3AF", background: "#F0F2F5", borderRadius: 6, padding: "2px 8px" }}>стандартна</span>
+        ) : (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => cat && openEdit(cat)} style={{ background: "#F0F2F5", border: "none", borderRadius: 7, padding: "5px 10px", fontSize: 12, cursor: "pointer", color: "#6B7280" }}>✏️</button>
+            <button onClick={() => cat && handleDelete(cat)} style={{ background: "none", border: "1.5px solid #E8EAF0", borderRadius: 7, padding: "5px 10px", fontSize: 12, cursor: "pointer", color: "#9CA3AF" }}>🗑️</button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={() => setShowForm(!showForm)} style={{ background: "#1EB788", color: "#fff", border: "none", borderRadius: 12, padding: "0 20px", height: 40, fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(30,183,136,.3)" }}>
-          + Встановити ліміт
+        <button onClick={openCreate} style={{ background: "#1EB788", color: "#fff", border: "none", borderRadius: 12, padding: "0 20px", height: 40, fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(30,183,136,.3)" }}>
+          + Нова категорія
         </button>
       </div>
 
       {showForm && (
-        <div style={{ background: "#fff", borderRadius: 16, padding: 22, border: "1px solid #E8EAF0", marginBottom: 16, boxShadow: "0 2px 8px rgba(26,39,68,.06)" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#1A2744", marginBottom: 16 }}>Ліміт витрат по категорії</div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 8, fontWeight: 600, textTransform: "uppercase" }}>Категорія</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {DEFAULT_CATEGORIES.map(cat => (
-                <button key={cat.name} onClick={() => setSelectedCat(cat)} style={{ padding: "8px 14px", borderRadius: 20, border: "1.5px solid", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, background: selectedCat.name === cat.name ? "#E1F5EE" : "#F9FAFB", color: selectedCat.name === cat.name ? "#0F6E56" : "#6B7280", borderColor: selectedCat.name === cat.name ? "#5DCAA5" : "#E8EAF0", fontWeight: selectedCat.name === cat.name ? 700 : 400 }}>
-                  {cat.emoji} {cat.name}
-                </button>
-              ))}
+        <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "1px solid #E8EAF0", marginBottom: 16, boxShadow: "0 2px 8px rgba(26,39,68,.06)" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#1A2744", marginBottom: 16 }}>
+            {editCat ? `Редагувати: ${editCat.name}` : "Нова категорія"}
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <button onClick={() => setType("expense")} style={{ flex: 1, padding: 10, borderRadius: 10, border: "1.5px solid", fontSize: 13, fontWeight: 700, cursor: "pointer", background: type === "expense" ? "#FCEBEB" : "#F9FAFB", color: type === "expense" ? "#A32D2D" : "#9CA3AF", borderColor: type === "expense" ? "#F09595" : "#E8EAF0" }}>
+              ↓ Витрата
+            </button>
+            <button onClick={() => setType("income")} style={{ flex: 1, padding: 10, borderRadius: 10, border: "1.5px solid", fontSize: 13, fontWeight: 700, cursor: "pointer", background: type === "income" ? "#E1F5EE" : "#F9FAFB", color: type === "income" ? "#0F6E56" : "#9CA3AF", borderColor: type === "income" ? "#5DCAA5" : "#E8EAF0" }}>
+              ↑ Дохід
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>Назва</div>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Назва категорії" style={{ width: "100%", border: "1.5px solid #E8EAF0", borderRadius: 8, padding: "9px 12px", fontSize: 13, outline: "none", color: "#1A2744" }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>Емодзі</div>
+              <input value={emoji} onChange={e => setEmoji(e.target.value)} placeholder="🎯" style={{ width: "100%", border: "1.5px solid #E8EAF0", borderRadius: 8, padding: "9px 12px", fontSize: 13, outline: "none" }} />
             </div>
           </div>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>Місячний ліміт (грн)</div>
-            <input type="number" value={limitAmount} onChange={e => setLimitAmount(e.target.value)} placeholder="5000" style={{ width: "100%", border: "1.5px solid #E8EAF0", borderRadius: 10, padding: "10px 14px", fontSize: 14, outline: "none", color: "#1A2744" }} />
-          </div>
+
+          {type === "expense" && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>
+                Місячний ліміт (грн) — необов&apos;язково
+              </div>
+              <input
+                type="number"
+                value={limitAmount}
+                onChange={e => setLimitAmount(e.target.value)}
+                placeholder="Наприклад: 5000"
+                style={{ width: "100%", border: "1.5px solid #E8EAF0", borderRadius: 8, padding: "9px 12px", fontSize: 13, outline: "none", color: "#1A2744" }}
+              />
+              <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
+                Буде відображатись як прогрес-бар на дашборді
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: "#1EB788", color: "#fff", border: "none", borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              {saving ? "Збереження..." : "Зберегти ліміт"}
+              {saving ? "Збереження..." : "Зберегти"}
             </button>
             <button onClick={() => setShowForm(false)} style={{ border: "1.5px solid #E8EAF0", background: "#fff", borderRadius: 8, padding: "10px 16px", fontSize: 13, cursor: "pointer", color: "#6B7280" }}>
               Скасувати
@@ -122,55 +198,31 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {limits.length === 0 ? (
-        <div style={{ background: "#fff", borderRadius: 16, padding: 32, border: "1px solid #E8EAF0", textAlign: "center" }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🎯</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#1A2744", marginBottom: 6 }}>Ще немає лімітів</div>
-          <div style={{ fontSize: 13, color: "#9CA3AF" }}>Встановіть місячний ліміт по категорії щоб контролювати витрати</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 20, border: "1px solid #E8EAF0", boxShadow: "0 2px 8px rgba(26,39,68,.06)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A2744", marginBottom: 4 }}>Витрати</div>
+          <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 12 }}>Стандартні + власні</div>
+          {DEFAULT_EXPENSE.map(c => renderCatRow(c.name, c.emoji, true))}
+          {categories.filter(c => c.type === "expense").length > 0 && (
+            <>
+              <div style={{ fontSize: 11, color: "#9CA3AF", margin: "12px 0 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Власні</div>
+              {categories.filter(c => c.type === "expense").map(c => renderCatRow(c.name, c.emoji, false, c))}
+            </>
+          )}
         </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {limits.map(limit => {
-            const spentAmount = getSpent(limit.category_name);
-            const pct = limit.monthly_limit > 0 ? Math.round((spentAmount / limit.monthly_limit) * 100) : 0;
-            const color = pct < 60 ? "#1EB788" : pct < 85 ? "#EF9F27" : "#E24B4A";
-            const isOver = pct >= 100;
 
-            return (
-              <div key={limit.id} style={{ background: "#fff", borderRadius: 16, padding: 20, border: `1px solid ${isOver ? "#F09595" : "#E8EAF0"}`, boxShadow: "0 2px 8px rgba(26,39,68,.06)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 11, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                    {limit.emoji}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1A2744" }}>{limit.category_name}</div>
-                    <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>
-                      Витрачено {spentAmount.toLocaleString("uk-UA")} з {limit.monthly_limit.toLocaleString("uk-UA")} грн
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 20, fontWeight: 700, color }}>{pct}%</div>
-                    {isOver && <div style={{ fontSize: 11, color: "#E24B4A", fontWeight: 600 }}>Перевищено!</div>}
-                  </div>
-                  <button onClick={() => handleDelete(limit.id)} style={{ background: "none", border: "1.5px solid #E8EAF0", borderRadius: 7, width: 30, height: 30, cursor: "pointer", fontSize: 14, color: "#9CA3AF", flexShrink: 0 }}>🗑️</button>
-                </div>
-
-                <div style={{ height: 10, background: "#F0F2F5", borderRadius: 5, overflow: "hidden", marginBottom: 8 }}>
-                  <div style={{ height: "100%", width: Math.min(pct, 100) + "%", background: color, borderRadius: 5, transition: "width .4s" }} />
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                  <span style={{ color: "#9CA3AF" }}>0 грн</span>
-                  <span style={{ color: isOver ? "#E24B4A" : "#9CA3AF", fontWeight: isOver ? 700 : 400 }}>
-                    {isOver ? `Перевищено на ${(spentAmount - limit.monthly_limit).toLocaleString("uk-UA")} грн` : `Залишилось ${(limit.monthly_limit - spentAmount).toLocaleString("uk-UA")} грн`}
-                  </span>
-                  <span style={{ color: "#9CA3AF" }}>{limit.monthly_limit.toLocaleString("uk-UA")} грн</span>
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ background: "#fff", borderRadius: 16, padding: 20, border: "1px solid #E8EAF0", boxShadow: "0 2px 8px rgba(26,39,68,.06)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A2744", marginBottom: 4 }}>Доходи</div>
+          <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 12 }}>Стандартні + власні</div>
+          {DEFAULT_INCOME.map(c => renderCatRow(c.name, c.emoji, true))}
+          {categories.filter(c => c.type === "income").length > 0 && (
+            <>
+              <div style={{ fontSize: 11, color: "#9CA3AF", margin: "12px 0 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Власні</div>
+              {categories.filter(c => c.type === "income").map(c => renderCatRow(c.name, c.emoji, false, c))}
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
