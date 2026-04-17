@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function JoinPage() {
+function JoinContent() {
   const [status, setStatus] = useState<"loading"|"ready"|"done"|"error">("loading");
-  const [email, setEmail] = useState("");
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token");
@@ -16,7 +15,6 @@ export default function JoinPage() {
       if (!token) { setStatus("error"); return; }
       const { data } = await supabase.from("invitations").select("*").eq("token", token).single();
       if (!data || data.accepted) { setStatus("error"); return; }
-      setEmail(data.email);
       setStatus("ready");
     };
     check();
@@ -35,21 +33,31 @@ export default function JoinPage() {
   };
 
   return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 40, marginBottom: 16 }}>💰</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#1A2744", marginBottom: 8 }}>Запрошення до сімї</div>
+      {status === "loading" && <div style={{ color: "#9CA3AF" }}>Перевірка...</div>}
+      {status === "error" && <div style={{ color: "#E24B4A" }}>Посилання недійсне або вже використане</div>}
+      {status === "ready" && (
+        <div>
+          <div style={{ color: "#6B7280", marginBottom: 24 }}>Вас запрошено приєднатись до сімейного гаманця</div>
+          <button onClick={handleJoin} style={{ width: "100%", background: "#1EB788", color: "#fff", border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            Приєднатись
+          </button>
+        </div>
+      )}
+      {status === "done" && <div style={{ color: "#1EB788", fontWeight: 600 }}>Успішно! Перенаправлення...</div>}
+    </div>
+  );
+}
+
+export default function JoinPage() {
+  return (
     <div style={{ minHeight: "100vh", background: "#F0F2F5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 20, padding: 40, width: 420, boxShadow: "0 4px 24px rgba(26,39,68,.1)", textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 16 }}>💰</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#1A2744", marginBottom: 8 }}>Запрошення до сімї</div>
-        {status === "loading" && <div style={{ color: "#9CA3AF" }}>Перевірка запрошення...</div>}
-        {status === "error" && <div style={{ color: "#E24B4A" }}>Посилання недійсне або вже використане</div>}
-        {status === "ready" && (
-          <div>
-            <div style={{ color: "#6B7280", marginBottom: 24 }}>Вас запрошено приєднатись до сімейного гаманця</div>
-            <button onClick={handleJoin} style={{ width: "100%", background: "#1EB788", color: "#fff", border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-              Приєднатись
-            </button>
-          </div>
-        )}
-        {status === "done" && <div style={{ color: "#1EB788", fontWeight: 600 }}>Ви успішно приєднались! Перенаправлення...</div>}
+      <div style={{ background: "#fff", borderRadius: 20, padding: 40, width: 420, boxShadow: "0 4px 24px rgba(26,39,68,.1)" }}>
+        <Suspense fallback={<div style={{ textAlign: "center", color: "#9CA3AF" }}>Завантаження...</div>}>
+          <JoinContent />
+        </Suspense>
       </div>
     </div>
   );
