@@ -51,21 +51,19 @@ export default function AiTips() {
 [{"icon":"💡","title":"Назва поради","text":"Текст поради 1-2 речення","color":"#1EB788"},...]
 Використовуй різні іконки та кольори: #1EB788 (зелений), #EF9F27 (жовтий), #E24B4A (червоний), #378ADD (синій).`;
 
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 1000,
-            messages: [{ role: "user", content: prompt }],
-          }),
-        });
-
-        const data = await response.json();
-        const text = data.content?.[0]?.text || "[]";
-        const clean = text.replace(/```json|```/g, "").trim();
-        const parsed = JSON.parse(clean);
-        setTips(parsed);
+       const response = await fetch("/api/ai-tips", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    income,
+    expense,
+    daysLeft,
+    goals: goals?.map(g => g.name + " (" + Math.round(g.current_amount / g.target_amount * 100) + "%)").join(", "),
+  }),
+});
+const data = await response.json();
+setTips(data.tips || []);
+        
       } catch (e) {
         setTips([
           { icon: "💡", title: "Відстежуйте витрати", text: "Додавайте транзакції щодня — це допоможе краще планувати бюджет.", color: "#1EB788" },
