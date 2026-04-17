@@ -83,7 +83,9 @@ export default function TransactionsPage() {
                 const cat = catColors[tx.description] || { bg:"#F0F2F5", color:"#6B7280" };
                 return (
                   <tr key={tx.id} style={{ borderBottom:"1px solid #F5F5F8", opacity: deleting===tx.id ? 0.4 : 1, transition:"opacity .2s" }}>
-                    <td style={{ padding:"12px 16px", fontSize:13, color:"#9CA3AF" }}>{tx.date}</td>
+                    <td style={{ padding:"12px 16px", fontSize:13, color:"#9CA3AF" }}>
+  {new Date(tx.date).toLocaleDateString("uk-UA", { day:"numeric", month:"short", year:"numeric" })}
+</td>
                     <td style={{ padding:"12px 16px", fontSize:13, color:"#1A2744", fontWeight:500 }}>{tx.description}</td>
                     <td style={{ padding:"12px 16px" }}>
                       <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600, background:cat.bg, color:cat.color }}>{tx.description}</span>
