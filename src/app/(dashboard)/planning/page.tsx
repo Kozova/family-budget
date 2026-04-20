@@ -125,7 +125,7 @@ export default function PlanningPage() {
       });
       const data = await response.json();
       const text = data.tips?.[0]?.text || "";
-      const match = text.match(/\{.*\}/s);
+      const match = text.match(/\{[\s\S]*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
         if (parsed.category) {
