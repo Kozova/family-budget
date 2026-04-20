@@ -13,6 +13,7 @@ const nav = [
   { section: 'Планування', items: [
     { href: '/goals', icon: '🎯', label: 'Цілі' },
     { href: '/recurring', icon: '🔁', label: 'Регулярні' },
+    { href: '/planning', icon: '📝', label: 'Планування' },
   ]},
   { section: 'Аналіз', items: [
     { href: '/analytics', icon: '📈', label: 'Статистика' },
