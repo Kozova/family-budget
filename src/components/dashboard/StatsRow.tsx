@@ -28,7 +28,7 @@ export default function StatsRow({ refresh }: { refresh?: number }) {
   ];
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }} className="stats-row">
       {stats.map(s => (
         <div key={s.label} style={{ background:"#fff", borderRadius:16, padding:"16px 18px", border:"1px solid #E8EAF0", boxShadow:"0 2px 8px rgba(26,39,68,.06)" }}>
           <div style={{ fontSize:10, textTransform:"uppercase", letterSpacing:"0.07em", color:"#9CA3AF", marginBottom:6 }}>{s.label}</div>

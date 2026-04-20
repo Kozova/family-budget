@@ -23,3 +23,9 @@ a { text-decoration: none; }
   .sidebar-mobile-overlay { display: none !important; }
   .mobile-menu-btn { display: none !important; }
 }
+@media (max-width: 768px) {
+  .stats-row { grid-template-columns: 1fr !important; }
+  .goals-grid { grid-template-columns: 1fr !important; }
+  .dashboard-bottom { grid-template-columns: 1fr !important; }
+  .main-content { padding: 16px !important; }
+}
