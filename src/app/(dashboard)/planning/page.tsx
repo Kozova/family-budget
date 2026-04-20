@@ -41,7 +41,6 @@ export default function PlanningPage() {
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [plannedDate, setPlannedDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
   const supabase = createClient();
 
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
@@ -111,33 +110,6 @@ export default function PlanningPage() {
     load();
   };
 
-  const handleAiSuggest = async () => {
-    if (!title.trim()) return;
-    setAiLoading(true);
-    try {
-      const response = await fetch("/api/ai-tips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          income: 0, expense: 0, daysLeft: 30,
-          goals: `Визнач категорію і приблизну суму для витрати: "${title}". Відповідь тільки JSON: {"category":"назва категорії","emoji":"емодзі","amount":число}. Категорії: Їжа, Транспорт, Комунальні, Здоровя, Розваги, Освіта, Одяг, Підписки, Інше.`
-        }),
-      });
-      const data = await response.json();
-      const text = data.tips?.[0]?.text || "";
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        if (parsed.category) {
-          const found = CATEGORIES.find(c => c.name === parsed.category);
-          if (found) setCategory(found);
-        }
-        if (parsed.amount) setAmount(String(parsed.amount));
-      }
-    } catch {}
-    setAiLoading(false);
-  };
-
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
 
@@ -148,14 +120,12 @@ export default function PlanningPage() {
 
   return (
     <div>
-      {/* Навігація по місяцях */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
         <button onClick={prevMonth} style={{ background:"#fff", border:"1.5px solid #E8EAF0", borderRadius:8, width:36, height:36, cursor:"pointer", fontSize:16 }}>←</button>
         <div style={{ fontSize:16, fontWeight:700, color:"#1A2744" }}>{MONTHS_UA[month]} {year}</div>
         <button onClick={nextMonth} style={{ background:"#fff", border:"1.5px solid #E8EAF0", borderRadius:8, width:36, height:36, cursor:"pointer", fontSize:16 }}>→</button>
       </div>
 
-      {/* Підсумок */}
       {items.length > 0 && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
           <div style={{ background:"#fff", borderRadius:14, padding:"14px 16px", border:"1px solid #E8EAF0" }}>
@@ -181,31 +151,15 @@ export default function PlanningPage() {
         </button>
       </div>
 
-      {/* Форма */}
       {showForm && (
-        <div style={{ background:"#fff", borderRadius:16, padding:22, border:"1px solid #E8EAF0", marginBottom:16, boxShadow:"0 2px 8px rgba(26,39,68,.06)" }}>
+        <div style={{ background:"#fff", borderRadius:16, padding:22, border:"1px solid #E8EAF0", marginBottom:16 }}>
           <div style={{ fontSize:15, fontWeight:700, color:"#1A2744", marginBottom:16 }}>
             {editItem ? "Редагувати" : "Нова витрата"}
           </div>
 
           <div style={{ marginBottom:12 }}>
-            <div style={{ fontSize:11, color:"#6B7280", marginBottom:5, fontWeight:600, textTransform:"uppercase" }}>Назва витрати</div>
-            <div style={{ display:"flex", gap:8 }}>
-              <input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="Наприклад: Купити продукти, Оплатити інтернет..."
-                style={{ flex:1, border:"1.5px solid #E8EAF0", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none", color:"#1A2744" }}
-              />
-              <button
-                onClick={handleAiSuggest}
-                disabled={aiLoading || !title.trim()}
-                title="ШІ визначить категорію і суму"
-                style={{ background: aiLoading ? "#F0F2F5" : "#E1F5EE", border:"none", borderRadius:8, padding:"9px 14px", fontSize:12, cursor:"pointer", color:"#0F6E56", fontWeight:600, whiteSpace:"nowrap" }}>
-                {aiLoading ? "..." : "✨ ШІ"}
-              </button>
-            </div>
-            <div style={{ fontSize:11, color:"#9CA3AF", marginTop:4 }}>Натисни ✨ ШІ — система визначить категорію і суму автоматично</div>
+            <div style={{ fontSize:11, color:"#6B7280", marginBottom:5, fontWeight:600, textTransform:"uppercase" }}>Назва</div>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Наприклад: Купити продукти, Оплатити інтернет..." style={{ width:"100%", border:"1.5px solid #E8EAF0", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none", color:"#1A2744" }} />
           </div>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
@@ -241,7 +195,6 @@ export default function PlanningPage() {
         </div>
       )}
 
-      {/* Список */}
       {loading ? (
         <div style={{ textAlign:"center", padding:40, color:"#9CA3AF" }}>Завантаження...</div>
       ) : items.length === 0 ? (
@@ -251,20 +204,15 @@ export default function PlanningPage() {
           <div style={{ fontSize:13, color:"#9CA3AF" }}>Додайте заплановані витрати — квартплату, продукти, підписки</div>
         </div>
       ) : (
-        <div style={{ background:"#fff", borderRadius:16, border:"1px solid #E8EAF0", overflow:"hidden", boxShadow:"0 2px 8px rgba(26,39,68,.06)" }}>
+        <div style={{ background:"#fff", borderRadius:16, border:"1px solid #E8EAF0", overflow:"hidden" }}>
           {items.map((item, i) => (
-            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px", borderBottom:i<items.length-1?"1px solid #F5F5F8":"none", opacity:item.is_done?0.6:1, transition:"opacity .2s" }}>
-              {/* Чекбокс */}
-              <button onClick={() => handleToggle(item)} style={{ width:22, height:22, borderRadius:6, border:`2px solid ${item.is_done?"#1EB788":"#D1D5DB"}`, background:item.is_done?"#1EB788":"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all .2s" }}>
+            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px", borderBottom:i<items.length-1?"1px solid #F5F5F8":"none", opacity:item.is_done?0.6:1 }}>
+              <button onClick={() => handleToggle(item)} style={{ width:22, height:22, borderRadius:6, border:`2px solid ${item.is_done?"#1EB788":"#D1D5DB"}`, background:item.is_done?"#1EB788":"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 {item.is_done && <span style={{ color:"#fff", fontSize:12 }}>✓</span>}
               </button>
-
-              {/* Емодзі */}
               <div style={{ width:36, height:36, borderRadius:9, background:"#F0F2F5", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
                 {item.emoji}
               </div>
-
-              {/* Інфо */}
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:item.is_done?"#9CA3AF":"#1A2744", textDecoration:item.is_done?"line-through":"none" }}>
                   {item.title}
@@ -274,15 +222,11 @@ export default function PlanningPage() {
                   {item.planned_date && <span>· {new Date(item.planned_date).toLocaleDateString("uk-UA", { day:"numeric", month:"short" })}</span>}
                 </div>
               </div>
-
-              {/* Сума */}
               {item.amount && (
                 <div style={{ fontSize:14, fontWeight:700, color:item.is_done?"#9CA3AF":"#E24B4A", whiteSpace:"nowrap" }}>
                   -{item.amount.toLocaleString("uk-UA")} грн
                 </div>
               )}
-
-              {/* Кнопки */}
               <div style={{ display:"flex", gap:6 }}>
                 <button onClick={() => openEdit(item)} style={{ background:"#F0F2F5", border:"none", borderRadius:7, width:28, height:28, cursor:"pointer", fontSize:12 }}>✏️</button>
                 <button onClick={() => handleDelete(item.id)} style={{ background:"none", border:"1.5px solid #E8EAF0", borderRadius:7, width:28, height:28, cursor:"pointer", fontSize:12, color:"#9CA3AF" }}>🗑️</button>
