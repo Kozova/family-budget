@@ -12,10 +12,8 @@ export default function DashboardPage() {
       <BalanceHero />
       <StatsRow />
       <LimitsWidget />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-        <GoalsWidget />
-        <PlanningWidget />
-      </div>
+      <GoalsWidget />
+      <PlanningWidget />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <RecentTransactions />
         <AiTips />
